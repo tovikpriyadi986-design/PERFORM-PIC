@@ -1,41 +1,70 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard PIC - YOGYA</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DASHBOARD SUMMARY PIC</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:12px}
+.card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:22px;margin:0;font-weight:800;line-height:1.1}
+.small{color:#666;font-size:13px;margin-top:4px}
+button{background:#000;color:#fff;border:0;border-radius:24px;padding:10px 18px;font-weight:700;cursor:pointer}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
+th,td{padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:left;white-space:nowrap}
+th{background:#111;color:#fff;position:sticky;top:0}
+.wrap{overflow:auto;max-height:80vh;background:#fff;border-radius:12px}
+#status{font-size:12px;color:#0a0}
+</style>
 </head>
-<body class="bg-[#f5f5f7] p-3 md:p-6">
-<div class="max-w-7xl mx-auto">
-  <div class="bg-white rounded-2xl p-5 shadow-sm mb-6 flex justify-between items-center">
-    <div>
-      <h1 class="text-xl font-black">DASHBOARD SUMMARY PIC</h1>
-      <p class="text-xs text-gray-500">Auto-sync dari STOK MASTER | Kolom L otomatis</p>
-      <p id="lastUpdate" class="text-[11px] text-blue-600 mt-1 font-mono"></p>
-    </div>
-    <button onclick="loadData()" class="bg-black text-white px-4 py-2 rounded-full text-xs font-bold">REFRESH</button>
-  </div>
-  <div id="dashboard" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
+<body>
+<div class="card">
+<div>
+<h1>DASHBOARD SUMMARY<br>PIC</h1>
+<div class="small">Auto-sync dari STOK MASTER | Publikasi Web | Kolom L otomatis</div>
+<div class="small">Last sync: <span id="last">-</span> <span id="status"></span></div>
+</div>
+<button onclick="loadData()">REFRESH</button>
+</div>
+<div class="wrap">
+<table id="tbl"><thead></thead><tbody><tr><td>Loading data dari Google Sheet...</td></tr></tbody></table>
 </div>
 <script>
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcw_VWQ9-Z2JU87wyKKSruf5p6ZDZgfK3IDTFjtOp-r_NIOh9zcOjx8IQDy9c-UILUN5JmTm-ggKDi/pub?gid=0&single=true&output=csv";
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcw_VWQ9-Z2JU87wyKKSruf5p6ZDZgfk3IDTFjtOp-r_NI0h9zcOjx8IQDy9c-UILUN5JmTm-ggKDi/pub?output=csv";
 async function loadData(){
-  const res = await fetch(SHEET_CSV_URL + '&t=' + Date.now());
-  const text = await res.text();
-  const lines = text.trim().split('\n');
-  const parseRow = (row) => { const result=[]; let cur=''; let inQ=false; for(let i=0;i<row.length;i++){ const c=row[i]; if(c=='"'){ inQ=!inQ; continue; } if(c==',' &&!inQ){ result.push(cur.trim()); cur=''; } else { cur+=c; } } result.push(cur.trim()); return result; };
-  const rows = lines.map(parseRow);
-  const header = rows[0].map(h=>h.toLowerCase().trim());
-  const findIdx = (keys) => header.findIndex(h=> keys.some(k=>h.includes(k)));
-  const idxNode = findIdx(['node']); const idxSales = header.indexOf('sales'); const idxSalesTo = header.findIndex(h=> h.includes('sales to') &&!h.includes('ly')); const idxSalesToLy = header.findIndex(h=> h.includes('sales to') && h.includes('ly')); const idxPIC = findIdx(['pic']);
-  const data = rows.slice(1).filter(r=> r[idxPIC]);
-  const summary={};
-  data.forEach(r=>{ let pic=(r[idxPIC]||'NO PIC').trim(); let node=(r[idxNode]||'UNKNOWN').trim(); let salesTo=parseFloat((r[idxSalesTo]||'0').replace(/[^0-9.-]/g,''))||0; let salesToLy=parseFloat((r[idxSalesToLy]||'0').replace(/[^0-9.-]/g,''))||0; let salesQty=parseFloat((r[idxSales]||'0').replace(/[^0-9.-]/g,''))||0; if(!summary[pic]) summary[pic]={ totalTo:0, nodes:{}, count:0, totalQty:0 }; if(!summary[pic].nodes[node]) summary[pic].nodes[node]={ to:0, toLy:0, qty:0, count:0, mati:0 }; summary[pic].totalTo+=salesTo; summary[pic].totalQty+=salesQty; summary[pic].count++; summary[pic].nodes[node].to+=salesTo; summary[pic].nodes[node].toLy+=salesToLy; summary[pic].nodes[node].qty+=salesQty; summary[pic].nodes[node].count++; if(salesTo===0) summary[pic].nodes[node].mati++; });
-  const container=document.getElementById('dashboard'); container.innerHTML='';
-  Object.keys(summary).sort().forEach(pic=>{ const s=summary[pic]; let nodesHtml=''; Object.keys(s.nodes).sort((a,b)=> s.nodes[b].to - s.nodes[a].to).forEach(node=>{ const n=s.nodes[node]; const kontribusi=s.totalTo? (n.to/s.totalTo*100):0; const growth=n.toLy? ((n.to-n.toLy)/n.toLy*100):0; nodesHtml+=`<tr class="border-b text-[12px]"><td class="py-2 px-3 font-bold">${node}</td><td class="py-2 px-3 text-right">Rp ${n.to.toLocaleString('id-ID')}</td><td class="py-2 px-3 text-center"><span class="bg-black text-white px-2 py-0.5 rounded-full text-[11px]">${kontribusi.toFixed(1)}%</span></td><td class="py-2 px-3 text-right ${growth>=0?'text-green-600':'text-red-600'}">${growth?growth.toFixed(1)+'%':'-'}</td><td class="py-2 px-3 text-center">${n.qty}</td><td class="py-2 px-3 text-center">${n.count} art | ${n.mati} mati</td></tr>`; }); container.innerHTML+=`<div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><div class="p-4 flex justify-between items-center bg-gray-900 text-white"><h2 class="font-black">${pic.toUpperCase()}</h2><div class="font-bold text-sm">Rp ${s.totalTo.toLocaleString('id-ID')}</div></div><table class="w-full"><thead class="bg-gray-100 text-[10px]"><tr><th class="py-2 px-3 text-left">Node</th><th class="py-2 px-3 text-right">Sales Total (H)</th><th class="py-2">Kontribusi</th><th class="py-2">Growth</th><th>Qty</th><th>Detail</th></tr></thead><tbody>${nodesHtml}</tbody></table></div>`; });
-  document.getElementById('lastUpdate').innerText='Last sync: '+new Date().toLocaleString('id-ID');
+  document.getElementById('last').innerText = new Date().toLocaleString('id-ID');
+  document.getElementById('status').innerText = " - Syncing...";
+  try{
+    const res = await fetch(CSV_URL + "&t=" + Date.now());
+    const text = await res.text();
+    const rows = text.split("\n").map(r=>{
+      const cols = []; let cur=""; let inQ=false;
+      for(let i=0;i<r.length;i++){
+        const c=r[i];
+        if(c=='"'){ if(inQ && r[i+1]=='"'){cur+='"'; i++;} else {inQ=!inQ;} }
+        else if(c==',' &&!inQ){cols.push(cur); cur="";}
+        else{cur+=c;}
+      }
+      cols.push(cur);
+      return cols;
+    });
+    if(rows.length<2) throw new Error("CSV kosong");
+    const head = rows[0];
+    let thead = "<tr>" + head.map(h=>`<th>${h}</th>`).join("") + "</tr>";
+    document.querySelector('#tbl thead').innerHTML = thead;
+    let body = "";
+    for(let i=1;i<rows.length;i++){
+      if(rows[i].length<=1 || rows[i].join("").trim()=="") continue;
+      body += "<tr>" + rows[i].map(c=>`<td>${c}</td>`).join("") + "</tr>";
+    }
+    document.querySelector('#tbl tbody').innerHTML = body || "<tr><td>Tidak ada data</td></tr>";
+    document.getElementById('status').innerText = " - Berhasil " + (rows.length-1) + " baris";
+  }catch(e){
+    document.getElementById('status').innerText = " - Gagal: " + e.message;
+    document.querySelector('#tbl tbody').innerHTML = `<tr><td>Gagal load: ${e.message}</td></tr>`;
+  }
 }
-loadData(); setInterval(loadData,60000);
+loadData();
 </script>
 </body>
 </html>
