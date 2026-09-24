@@ -5,62 +5,105 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DASHBOARD SUMMARY PIC</title>
 <style>
-body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:12px}
-.card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
-h1{font-size:22px;margin:0;font-weight:800}
-.small{color:#666;font-size:13px;margin-top:4px}
-button{background:#000;color:#fff;border:0;border-radius:24px;padding:10px 18px;font-weight:700;cursor:pointer}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
-th,td{padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:left;white-space:nowrap}
-th{background:#111;color:#fff;position:sticky;top:0}
-.wrap{overflow:auto;max-height:85vh;background:#fff;border-radius:12px}
-#status{color:#0a0;font-weight:bold}
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;background:#f2f4f7;margin:0;padding:12px}
+.top{background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);margin-bottom:14px}
+h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px}
+.sub{color:#667085;font-size:13px;margin-top:4px}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.kpi{flex:1;min-width:140px;background:#f8fafc;border:1px solid #eef2f7;border-radius:16px;padding:12px}
+.kpi b{font-size:22px;display:block}.kpi span{font-size:12px;color:#667085}
+.card{background:#fff;border-radius:18px;padding:14px;box-shadow:0 4px 16px rgba(0,0,0,.06);overflow:hidden}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 8px;border-bottom:1px solid #eef2f7;font-size:13px;text-align:left;white-space:nowrap}
+th{background:#101828;color:#fff;position:sticky;top:0}
+td:nth-child(2){font-weight:700}
+.badge{background:#000;color:#fff;border-radius:20px;padding:3px 10px;font-size:11px;display:inline-block}
+.wrap{overflow:auto;max-height:70vh}
+#search{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #d0d5dd;margin-bottom:10px;font-size:14px}
+button{background:#101828;color:#fff;border:0;border-radius:24px;padding:10px 18px;font-weight:800}
+.small{font-size:11px;color:#98a2b3;margin-top:6px}
 </style>
 </head>
 <body>
-<div class="card">
-<div>
-<h1>DASHBOARD SUMMARY PIC</h1>
-<div class="small">Auto-sync dari STOK MASTER - LIVE</div>
-<div class="small">Last sync: <span id="last">-</span> <span id="status"></span></div>
-</div>
+<div class="top">
+<div style="display:flex;justify-content:space-between;align-items:start">
+<div><h1>DASHBOARD SUMMARY<br>PIC</h1><div class="sub">Auto-sync STOK MASTER - 4779 SKU LIVE</div><div class="sub">Last sync: <span id="last">-</span> | <span id="status" style="color:#12B76A;font-weight:800">Loading...</span></div></div>
 <button onclick="loadData()">REFRESH</button>
 </div>
-<div class="wrap">
-<table id="tbl"><thead></thead><tbody><tr><td style="padding:20px">Loading...</td></tr></tbody></table>
+<div class="row" id="kpis"></div>
 </div>
+
+<div class="card">
+<input id="search" placeholder="Cari PIC..." oninput="filterPIC(this.value)">
+<div class="wrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+<div class="small">Summary dihitung otomatis berdasarkan kolom PIC di sheet. Klik Refresh jika ada update stok.</div>
+</div>
+
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/19ig5P9vdFpRCkc0OpQA7SlSwBMwRjbAx642vtBm89W0/export?format=csv&gid=1763248773";
-async function loadData(){
-  document.getElementById('last').innerText = new Date().toLocaleString('id-ID');
-  document.getElementById('status').innerText = " Syncing...";
-  try{
-    const res = await fetch(CSV_URL + "&t=" + Date.now());
-    const text = await res.text();
-    if(text.includes("<!DOCTYPE") || text.includes("function n(a)")) throw new Error("Sheet belum di-Share Viewer");
-    const rows = text.split(/\r?\n/).map(r=>{
-      const cols=[]; let cur=""; let inQ=false;
-      for(let i=0;i<r.length;i++){
-        const c=r[i];
-        if(c=='"'){ if(inQ && r[i+1]=='"'){cur+='"'; i++;} else {inQ=!inQ;} }
-        else if(c==',' &&!inQ){cols.push(cur); cur="";}
-        else{cur+=c;}
-      }
-      cols.push(cur);
-      return cols;
-    }).filter(r=>r.join("").trim()!="");
-    if(rows.length<1) throw new Error("CSV kosong");
-    const head = rows[0];
-    document.querySelector('#tbl thead').innerHTML = "<tr>" + head.map(h=>`<th>${h}</th>`).join("") + "</tr>";
-    let body="";
-    for(let i=1;i<rows.length;i++){
-      body += "<tr>" + rows[i].map(c=>`<td>${c}</td>`).join("") + "</tr>";
-    }
-    document.querySelector('#tbl tbody').innerHTML = body;
-    document.getElementById('status').innerText = " Berhasil "+(rows.length-1)+" baris";
-  }catch(e){
-    document.getElementById('status').innerText = " Gagal: "+e.message;
+let summaryData=[];
+function parseCSV(text){
+  const rows=[]; let curRow=[]; let cur=""; let inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(c=='"'){ if(inQ && text[i+1]=='"'){cur+='"';i++;} else inQ=!inQ; }
+    else if(c==',' &&!inQ){curRow.push(cur.trim());cur="";}
+    else if((c=='\n' || c=='\r') &&!inQ){ if(c=='\r' && text[i+1]=='\n')i++; curRow.push(cur.trim()); if(curRow.join('')!=''){rows.push(curRow);} curRow=[];cur=""; }
+    else cur+=c;
   }
+  if(cur!='' || curRow.length>0){curRow.push(cur.trim());rows.push(curRow);}
+  return rows.filter(r=>r.join('').trim()!='');
+}
+async function loadData(){
+  document.getElementById('last').innerText=new Date().toLocaleString('id-ID');
+  document.getElementById('status').innerText='Syncing...';
+  try{
+    const res=await fetch(CSV_URL+"&t="+Date.now());
+    const txt=await res.text();
+    if(txt.includes('<!DOCTYPE')||txt.includes('function n(a)')) throw new Error('Sheet belum di-Share Viewer');
+    const rows=parseCSV(txt);
+    const head=rows[0].map(h=>h.toUpperCase());
+    let picIdx=head.findIndex(h=>h.includes('PIC'));
+    if(picIdx==-1) picIdx=head.findIndex(h=>h.includes('OWNER')||h.includes('PENANGGUNG'));
+    if(picIdx==-1) picIdx=0;
+    // cari kolom qty/stock numeric
+    let qtyIdxs=head.map((h,i)=>({h,i})).filter(o=>o.h.includes('STOK')||o.h.includes('STOCK')||o.h.includes('QTY')||o.h.includes('SALDO')||o.h.includes('ON HAND')).map(o=>o.i);
+
+    const groups={};
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i];
+      if(r.length<=picIdx) continue;
+      let pic=(r[picIdx]||'TANPA PIC').toUpperCase().trim()||'TANPA PIC';
+      if(!groups[pic]) groups[pic]={pic:pic,count:0,totalQty:0};
+      groups[pic].count++;
+      qtyIdxs.forEach(qi=>{let v=parseFloat((r[qi]||'0').replace(/[^0-9.-]/g,'')); if(!isNaN(v)) groups[pic].totalQty+=v;});
+    }
+    summaryData=Object.values(groups).sort((a,b)=>b.count-a.count);
+    const totalSKU=rows.length-1;
+    const totalPIC=summaryData.length;
+    document.getElementById('kpis').innerHTML=`
+      <div class="kpi"><span>Total SKU</span><b>${totalSKU.toLocaleString('id-ID')}</b></div>
+      <div class="kpi"><span>Total PIC</span><b>${totalPIC}</b></div>
+      <div class="kpi"><span>Rata2 SKU / PIC</span><b>${Math.round(totalSKU/Math.max(1,totalPIC))}</b></div>
+    `;
+    renderTable(summaryData,qtyIdxs.length>0);
+    document.getElementById('status').innerText='Berhasil '+totalSKU+' baris';
+  }catch(e){document.getElementById('status').innerText='Gagal: '+e.message}
+}
+function renderTable(data,hasQty){
+  let h=`<tr><th>PIC</th><th>JUMLAH SKU</th>${hasQty?'<th>TOTAL QTY/STOK</th>':''}<th>%</th></tr>`;
+  document.querySelector('#tbl thead').innerHTML=h;
+  const total=data.reduce((s,x)=>s+x.count,0);
+  let body='';
+  data.forEach(d=>{
+    let pct=((d.count/total)*100).toFixed(1);
+    body+=`<tr><td><span class="badge">${d.pic}</span></td><td>${d.count.toLocaleString('id-ID')}</td>${hasQty?`<td>${d.totalQty.toLocaleString('id-ID')}</td>`:''}<td>${pct}%</td></tr>`;
+  });
+  document.querySelector('#tbl tbody').innerHTML=body;
+}
+function filterPIC(q){
+  q=q.toUpperCase();
+  const f=summaryData.filter(d=>d.pic.includes(q));
+  renderTable(f,true);
 }
 loadData();
 </script>
