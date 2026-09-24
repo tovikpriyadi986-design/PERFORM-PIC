@@ -21,7 +21,7 @@ th{background:#111;color:#fff;position:sticky;top:0}
 <div class="card">
 <div>
 <h1>DASHBOARD SUMMARY PIC</h1>
-<div class="small">Auto-sync dari STOK MASTER | GID 1763248773</div>
+<div class="small">Auto-sync dari STOK MASTER - LIVE</div>
 <div class="small">Last sync: <span id="last">-</span> <span id="status"></span></div>
 </div>
 <button onclick="loadData()">REFRESH</button>
@@ -30,13 +30,14 @@ th{background:#111;color:#fff;position:sticky;top:0}
 <table id="tbl"><thead></thead><tbody><tr><td style="padding:20px">Loading...</td></tr></tbody></table>
 </div>
 <script>
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcw_VWQ9-Z2JU87wyKKSruf5p6ZDZgfk3IDTFjtOp-r_NI0h9zcOjx8IQDy9c-UILUN5JmTm-ggKDi/pub?gid=1763248773&single=true&output=csv";
+const CSV_URL = "https://docs.google.com/spreadsheets/d/19ig5P9vdFpRCkc0OpQA7SlSwBMwRjbAx642vtBm89W0/export?format=csv&gid=1763248773";
 async function loadData(){
   document.getElementById('last').innerText = new Date().toLocaleString('id-ID');
   document.getElementById('status').innerText = " Syncing...";
   try{
     const res = await fetch(CSV_URL + "&t=" + Date.now());
     const text = await res.text();
+    if(text.includes("<!DOCTYPE") || text.includes("function n(a)")) throw new Error("Sheet belum di-Share Viewer");
     const rows = text.split(/\r?\n/).map(r=>{
       const cols=[]; let cur=""; let inQ=false;
       for(let i=0;i<r.length;i++){
